@@ -1,6 +1,9 @@
 import { PriceInputData } from "@/components/PricingForm";
-import { estimateInflationSinceYear } from "./inflationData";
 import { getCurrentYear } from "./time";
+import { calculateCumulativeInflation } from "./calculateInflation";
+import { IndiaInflationYear } from "./fetchIndiaInflation";
+
+/* -------------------- TYPES -------------------- */
 
 export interface PsychologicalFactor {
   key: string;
@@ -24,8 +27,61 @@ export interface AnalysisResult {
   contextNotes: string[];
 }
 
+/* -------------------- HELPERS -------------------- */
+
+function inferCategory(name: string): "service" | "housing" | "food" | "other" {
+  const n = name.toLowerCase();
+
+  if (n.includes("rent") || n.includes("room") || n.includes("apartment")) {
+    return "housing";
+  }
+
+  if (n.includes("coffee") || n.includes("food") || n.includes("meal")) {
+    return "food";
+  }
+
+  if (n.includes("hair") || n.includes("salon") || n.includes("cut")) {
+    return "service";
+  }
+
+  return "other";
+}
+
+function categoryInflationBias(category: string): number {
+  switch (category) {
+    case "housing":
+      return 1.5;
+    case "service":
+      return 1.3;
+    case "food":
+      return 1.2;
+    default:
+      return 1.0;
+  }
+}
+
+function cityMultiplier(city?: string): number {
+  switch (city) {
+    case "Mumbai":
+      return 1.35;
+    case "Delhi":
+      return 1.25;
+    case "Bengaluru":
+      return 1.3;
+    case "Chennai":
+      return 1.2;
+    case "Hyderabad":
+      return 1.15;
+    default:
+      return 1.0;
+  }
+}
+
+/* -------------------- MAIN -------------------- */
+
 export function analyzePriceFeeling(
-  input: PriceInputData
+  input: PriceInputData,
+  indiaInflationData?: IndiaInflationYear[]
 ): AnalysisResult {
   const {
     productName,
@@ -33,6 +89,7 @@ export function analyzePriceFeeling(
     expectedPrice,
     lastPurchaseYear,
     countryCode,
+    city,
   } = input;
 
   const gapRatio = (actualPrice - expectedPrice) / expectedPrice;
@@ -41,171 +98,119 @@ export function analyzePriceFeeling(
   const psychologicalFactors: PsychologicalFactor[] = [];
   const contextNotes: string[] = [];
 
-  // ----------------------------
-  // 1️⃣ Price anchoring (memory)
-  // ----------------------------
+  /* -------- 1️⃣ Price memory -------- */
+
   if (lastPurchaseYear) {
     const yearsAgo = getCurrentYear() - lastPurchaseYear;
 
-    if (yearsAgo >= 5) {
-      psychologicalFactors.push({
-        key: "old_anchor",
-        label: "Old price anchor",
-        description:
-          "Your sense of what’s fair is anchored to a price from years ago. The longer the gap, the stronger the discomfort feels.",
-      });
-    } else if (yearsAgo >= 2) {
-      psychologicalFactors.push({
-        key: "compressed_jump",
-        label: "Compressed price shock",
-        description:
-          "Prices changed noticeably in a short time span, which makes the increase feel abrupt and unfair.",
-      });
-    }
+    psychologicalFactors.push({
+      key: "price_memory",
+      label: "Based on an older reference price",
+      description:
+        "Your expectations are shaped by what the price used to be, and those reference points tend to update slowly.",
+    });
 
     contextNotes.push(
-      `You’re comparing today’s price with a mental reference from ${yearsAgo} year${
+      `Your reference price comes from about ${yearsAgo} year${
         yearsAgo > 1 ? "s" : ""
-      } ago. Human price expectations update slowly.`
-    );
-  } else {
-    contextNotes.push(
-      "Without a clear memory of when you last paid for this, your brain may be blending older and newer price expectations."
+      } ago.`
     );
   }
 
-  // ----------------------------
-  // 2️⃣ Inflation contribution
-  // ----------------------------
+  /* -------- 2️⃣ Inflation & cost pressure -------- */
+
   let inflationContribution: InflationContribution | undefined;
 
-  if (lastPurchaseYear && countryCode && countryCode !== "OTHER") {
-    const inflation = estimateInflationSinceYear(
-      countryCode,
+  if (
+    lastPurchaseYear &&
+    countryCode === "IN" &&
+    indiaInflationData?.length
+  ) {
+    const baseInflation = calculateCumulativeInflation(
+      indiaInflationData,
       lastPurchaseYear
     );
 
-    const inflatedExpected =
-      expectedPrice * (1 + inflation.cumulativeInflation);
+    const category = inferCategory(productName);
+    const biasedInflation = baseInflation * categoryInflationBias(category);
 
-    const inflationGapRatio =
-      (inflatedExpected - expectedPrice) /
+    const adjustedExpected =
+      expectedPrice * (1 + biasedInflation) * cityMultiplier(city);
+
+    const explainedRatio =
+      (adjustedExpected - expectedPrice) /
       (actualPrice - expectedPrice || 1);
 
     const explainsPercent = Math.max(
       0,
-      Math.min(1, inflationGapRatio)
+      Math.min(1, explainedRatio)
     );
 
     inflationContribution = {
-      estimatedInflationPercent:
-        inflation.cumulativeInflation * 100,
+      estimatedInflationPercent: biasedInflation * 100,
       inflationExplainsPercent: explainsPercent * 100,
     };
 
-    if (explainsPercent > 0.7) {
-      psychologicalFactors.push({
-        key: "inflation_main",
-        label: "Inflation explains much of this",
-        description:
-          "A large part of the increase aligns with general cost-of-living changes, not just this product.",
-      });
-    } else if (explainsPercent > 0.3) {
-      psychologicalFactors.push({
-        key: "inflation_partial",
-        label: "Inflation explains part of this",
-        description:
-          "Some of the price rise comes from inflation, but other forces are clearly at work too.",
-      });
-    } else {
-      psychologicalFactors.push({
-        key: "inflation_small",
-        label: "Inflation doesn’t fully explain this",
-        description:
-          "Even after adjusting for inflation, the price still sits well above your internal ‘fair’ reference.",
-      });
+    /* ---- Soft context notes (not hardcoded truths) ---- */
+
+    if (city && cityMultiplier(city) > 1) {
+      contextNotes.push(
+        "Prices in larger cities tend to change faster due to higher operating and living costs."
+      );
     }
+
+    if (explainsPercent > 30) {
+      contextNotes.push(
+        "General cost increases explain a noticeable part of the price change."
+      );
+    } else {
+      contextNotes.push(
+        "Cost increases alone don’t fully explain how much the price has changed."
+      );
+    }
+
+    psychologicalFactors.push({
+      key: "inflation_context",
+      label:
+        explainsPercent > 30
+          ? "Rising costs play a role"
+          : "Price increase exceeds normal cost changes",
+      description:
+        explainsPercent > 30
+          ? "Some portion of the increase aligns with broader cost trends."
+          : "Even after adjusting for inflation, the increase still feels steep.",
+    });
   }
 
-  // ----------------------------
-  // 3️⃣ Loss aversion / gap size
-  // ----------------------------
+  /* -------- 3️⃣ Loss aversion -------- */
+
   if (gapRatio > 0.5) {
     psychologicalFactors.push({
-      key: "large_gap",
-      label: "Large jump vs expectation",
+      key: "loss_aversion",
+      label: "Large jump relative to expectations",
       description:
-        "Big jumps trigger loss aversion. Your brain experiences this as a punishment or unfair loss.",
-    });
-  } else if (gapRatio > 0.2) {
-    psychologicalFactors.push({
-      key: "moderate_gap",
-      label: "Noticeable mismatch",
-      description:
-        "The gap is large enough to feel uncomfortable, even if it’s not extreme.",
-    });
-  } else if (gapRatio > 0) {
-    psychologicalFactors.push({
-      key: "small_gap",
-      label: "Small but irritating gap",
-      description:
-        "Even small mismatches trigger discomfort when spending money regularly.",
-    });
-  } else if (gapRatio < 0) {
-    psychologicalFactors.push({
-      key: "below_expectation",
-      label: "Cheaper than expected",
-      description:
-        "If it still feels wrong, the issue may be trust, quality, or perceived risk—not price.",
+        "Large increases feel disproportionately uncomfortable compared to gradual changes.",
     });
   }
 
-  // ----------------------------
-  // 4️⃣ Category-specific context
-  // ----------------------------
-  const name = productName.toLowerCase();
+  /* -------- 4️⃣ Summary -------- */
 
-  if (name.includes("rent") || name.includes("apartment")) {
-    contextNotes.push(
-      "Housing prices often rise faster than average inflation due to demand, limited supply, and policy effects."
-    );
-  } else if (name.includes("coffee")) {
-    contextNotes.push(
-      "Frequent purchases like coffee hurt more because your brain remembers the old price very clearly."
-    );
-  } else if (name.includes("movie") || name.includes("ticket")) {
-    contextNotes.push(
-      "Entertainment pricing often hides rising fixed costs such as infrastructure, technology, and staffing."
-    );
-  }
+  let summary =
+    "This price feels off because it clashes with your internal sense of what seems reasonable.";
 
-  // ----------------------------
-  // 5️⃣ Summary (human language)
-  // ----------------------------
-  let summary: string;
+  const inflationExplains =
+    inflationContribution?.inflationExplainsPercent;
 
   if (
     gapRatio > 0.4 &&
-    inflationContribution &&
-    inflationContribution.inflationExplainsPercent < 40
+    inflationExplains !== undefined &&
+    inflationExplains < 40
   ) {
     summary =
-      "This feels expensive because the price jumped far beyond what your brain expects, and general inflation explains only a small part of that jump.";
-  } else if (gapRatio > 0.4) {
-    summary =
-      "This feels expensive mainly because your price expectations are anchored in the past while costs around you changed quickly.";
+      "This feels expensive because the price rose much more than you expected, and normal cost increases explain only part of that change.";
   } else if (gapRatio > 0.15) {
     summary =
-      "This feels somewhat unfair due to a noticeable mismatch between price and expectation.";
-  } else if (gapRatio > 0) {
-    summary =
-      "The price is only slightly higher than expected, but our brains are very sensitive to even small mismatches.";
-  } else if (gapRatio < 0) {
-    summary =
-      "The price is below your expectation. If it still feels off, the discomfort likely isn’t about the number itself.";
-  } else {
-    summary =
-      "Your expectation and the actual price are almost identical. Any discomfort likely comes from context, not price.";
+      "This feels unfair mainly because your expectations haven’t adjusted to how prices have evolved.";
   }
 
   return {

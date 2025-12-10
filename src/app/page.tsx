@@ -4,12 +4,22 @@ import { useState } from "react";
 import PricingForm, { PriceInputData } from "@/components/PricingForm";
 import ExplanationResult from "@/components/ExplanationResult";
 import { analyzePriceFeeling, AnalysisResult } from "@/lib/analysis";
+import { useIndiaInflation } from "@/lib/useIndiaInflation";
 
 export default function HomePage() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
 
+  const {
+    data: indiaInflation,
+    loading,
+    error,
+  } = useIndiaInflation();
+
   const handleAnalyze = (data: PriceInputData) => {
-    const analysis = analyzePriceFeeling(data);
+    const analysis = analyzePriceFeeling(
+      data,
+      indiaInflation ?? undefined
+    );
     setResult(analysis);
   };
 
@@ -24,6 +34,18 @@ export default function HomePage() {
             Enter what you&apos;re buying and what it costs. We&apos;ll explain
             why it feels expensive or unfair — in plain language.
           </p>
+
+          {loading && (
+            <p className="mt-2 text-xs text-slate-400">
+              Loading official inflation data for India…
+            </p>
+          )}
+
+          {error && (
+            <p className="mt-2 text-xs text-red-400">
+              Could not load inflation data. Using perception-based analysis.
+            </p>
+          )}
         </header>
 
         <PricingForm onAnalyze={handleAnalyze} />
@@ -31,13 +53,17 @@ export default function HomePage() {
         {result && (
           <>
             <div className="my-6 border-t border-slate-700" />
-            <ExplanationResult result={result} />
+<ExplanationResult
+  result={result}
+  inflationData={(indiaInflation ?? []).slice().reverse()}
+/>
+
           </>
         )}
 
         <footer className="mt-8 text-xs text-slate-500">
-          This is an educational tool. It doesn&apos;t give financial or legal
-          advice.
+          Inflation data sourced from the World Bank (CPI, annual %).<br />
+          This is an educational tool, not financial advice.
         </footer>
       </div>
     </main>

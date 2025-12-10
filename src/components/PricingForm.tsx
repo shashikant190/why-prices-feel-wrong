@@ -8,6 +8,7 @@ export interface PriceInputData {
   expectedPrice: number;
   lastPurchaseYear?: number;
   countryCode?: string;
+  city?: string;
 }
 
 interface Props {
@@ -18,10 +19,11 @@ const currentYear = new Date().getFullYear();
 
 export default function PricingForm({ onAnalyze }: Props) {
   const [productName, setProductName] = useState("");
-  const [actualPrice, setActualPrice] = useState<string>("");
-  const [expectedPrice, setExpectedPrice] = useState<string>("");
-  const [lastPurchaseYear, setLastPurchaseYear] = useState<string>("");
+  const [actualPrice, setActualPrice] = useState("");
+  const [expectedPrice, setExpectedPrice] = useState("");
+  const [lastPurchaseYear, setLastPurchaseYear] = useState("");
   const [countryCode, setCountryCode] = useState("IN");
+  const [city, setCity] = useState("India Average");
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -36,19 +38,16 @@ export default function PricingForm({ onAnalyze }: Props) {
       setError("Please enter a product or service name.");
       return;
     }
-
-    if (!Number.isFinite(actual) || actual <= 0) {
+    if (!actual || actual <= 0) {
       setError("Please enter a valid current price.");
       return;
     }
-
-    if (!Number.isFinite(expected) || expected <= 0) {
-      setError("Please enter what price feels fair to you.");
+    if (!expected || expected <= 0) {
+      setError("Please enter a fair expected price.");
       return;
     }
-
     if (year && (year < 1980 || year > currentYear)) {
-      setError(`Last purchase year should be between 1980 and ${currentYear}.`);
+      setError(`Year must be between 1980 and ${currentYear}.`);
       return;
     }
 
@@ -57,101 +56,72 @@ export default function PricingForm({ onAnalyze }: Props) {
       actualPrice: actual,
       expectedPrice: expected,
       lastPurchaseYear: year,
-      countryCode: countryCode || undefined
+      countryCode,
+      city,
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="space-y-1">
-        <label className="block text-sm font-medium text-slate-200">
-          What are you buying?
-        </label>
+      <input
+        className="w-full rounded-lg bg-slate-800 px-3 py-2 text-slate-100"
+        placeholder="e.g. haircut, movie ticket, rent"
+        value={productName}
+        onChange={(e) => setProductName(e.target.value)}
+      />
+
+      <div className="grid grid-cols-2 gap-4">
         <input
-          type="text"
-          className="w-full rounded-lg border border-slate-600 bg-slate-800/80 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          placeholder="e.g. movie ticket, coffee, haircut, rent"
-          value={productName}
-          onChange={(e) => setProductName(e.target.value)}
+          type="number"
+          placeholder="Current price"
+          className="rounded-lg bg-slate-800 px-3 py-2 text-slate-100"
+          value={actualPrice}
+          onChange={(e) => setActualPrice(e.target.value)}
+        />
+        <input
+          type="number"
+          placeholder="Feels fair"
+          className="rounded-lg bg-slate-800 px-3 py-2 text-slate-100"
+          value={expectedPrice}
+          onChange={(e) => setExpectedPrice(e.target.value)}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-slate-200">
-            Current price
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className="w-full rounded-lg border border-slate-600 bg-slate-800/80 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            placeholder="e.g. 350"
-            value={actualPrice}
-            onChange={(e) => setActualPrice(e.target.value)}
-          />
-        </div>
+      <div className="grid grid-cols-3 gap-4">
+        <input
+          type="number"
+          placeholder="Last paid (year)"
+          className="rounded-lg bg-slate-800 px-3 py-2 text-slate-100"
+          value={lastPurchaseYear}
+          onChange={(e) => setLastPurchaseYear(e.target.value)}
+        />
 
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-slate-200">
-            What price feels fair to you?
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className="w-full rounded-lg border border-slate-600 bg-slate-800/80 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            placeholder="e.g. 200"
-            value={expectedPrice}
-            onChange={(e) => setExpectedPrice(e.target.value)}
-          />
-        </div>
+        <select
+          className="rounded-lg bg-slate-800 px-3 py-2 text-slate-100"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+        >
+          <option>India Average</option>
+          <option>Mumbai</option>
+          <option>Delhi</option>
+          <option>Bengaluru</option>
+          <option>Hyderabad</option>
+          <option>Chennai</option>
+        </select>
+
+        <select
+          className="rounded-lg bg-slate-800 px-3 py-2 text-slate-100"
+          value={countryCode}
+          onChange={(e) => setCountryCode(e.target.value)}
+        >
+          <option value="IN">India</option>
+          <option value="OTHER">Other</option>
+        </select>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-slate-200">
-            Last time you paid for something like this (year)
-            <span className="text-slate-400"> — optional</span>
-          </label>
-          <input
-            type="number"
-            min="1980"
-            max={currentYear}
-            className="w-full rounded-lg border border-slate-600 bg-slate-800/80 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            placeholder="e.g. 2018"
-            value={lastPurchaseYear}
-            onChange={(e) => setLastPurchaseYear(e.target.value)}
-          />
-        </div>
+      {error && <p className="text-red-400">{error}</p>}
 
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-slate-200">
-            Country
-          </label>
-          <select
-            className="w-full rounded-lg border border-slate-600 bg-slate-800/80 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            value={countryCode}
-            onChange={(e) => setCountryCode(e.target.value)}
-          >
-            <option value="IN">India</option>
-            <option value="US">United States</option>
-            <option value="EU">Euro area</option>
-            <option value="OTHER">Other / not listed</option>
-          </select>
-        </div>
-      </div>
-
-      {error && (
-        <p className="text-sm text-red-400 bg-red-950/40 border border-red-700 rounded-md px-3 py-2">
-          {error}
-        </p>
-      )}
-
-      <button
-        type="submit"
-        className="inline-flex items-center justify-center rounded-lg bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-md shadow-sky-500/30 hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition"
-      >
+      <button className="rounded-lg bg-sky-500 px-4 py-2 font-semibold">
         Explain why this feels expensive
       </button>
     </form>

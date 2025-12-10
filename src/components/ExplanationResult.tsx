@@ -1,10 +1,24 @@
 import { AnalysisResult } from "@/lib/analysis";
+import InflationChart from "./InflationChart";
+
+/* ---------- TYPES ---------- */
+
+interface InflationPoint {
+  year: number;
+  inflation: number;
+}
 
 interface Props {
   result: AnalysisResult;
+  inflationData?: InflationPoint[];
 }
 
-export default function ExplanationResult({ result }: Props) {
+/* ---------- COMPONENT ---------- */
+
+export default function ExplanationResult({
+  result,
+  inflationData,
+}: Props) {
   const {
     productName,
     summary,
@@ -13,11 +27,12 @@ export default function ExplanationResult({ result }: Props) {
     gapPercentage,
     inflationContribution,
     psychologicalFactors,
-    contextNotes
+    contextNotes,
   } = result;
 
   return (
     <section className="space-y-5">
+      {/* ---------- Summary ---------- */}
       <div>
         <h2 className="text-lg md:text-xl font-semibold text-slate-50">
           Here&apos;s what might be happening with this price
@@ -25,76 +40,87 @@ export default function ExplanationResult({ result }: Props) {
         <p className="mt-1 text-sm text-slate-300">{summary}</p>
       </div>
 
+      {/* ---------- Main cards ---------- */}
       <div className="grid gap-4 md:grid-cols-3">
+        {/* Price comparison */}
         <div className="rounded-xl border border-slate-700 bg-slate-900/80 p-4 text-sm">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Price vs your expectation
           </h3>
+
           <p className="mt-2 text-slate-100">
-            <span className="block text-xs text-slate-400">
-              Current price
-            </span>
+            <span className="block text-xs text-slate-400">Current price</span>
             <span className="text-base font-semibold">
               {actualPrice.toLocaleString(undefined, {
-                maximumFractionDigits: 2
+                maximumFractionDigits: 2,
               })}
             </span>
           </p>
+
           <p className="mt-2 text-slate-100">
-            <span className="block text-xs text-slate-400">
-              Feels fair to you
-            </span>
+            <span className="block text-xs text-slate-400">Feels fair to you</span>
             <span className="text-base font-semibold">
               {expectedPrice.toLocaleString(undefined, {
-                maximumFractionDigits: 2
+                maximumFractionDigits: 2,
               })}
             </span>
           </p>
+
           <p className="mt-3 text-xs text-slate-300">
             The current price is{" "}
             <span className="font-semibold">
               {gapPercentage > 0 ? `~${gapPercentage}%` : "slightly"}
             </span>{" "}
-            {gapPercentage >= 0 ? "above" : "below"} what your brain feels is
-            fair for {productName || "this"}.
+            {gapPercentage >= 0 ? "above" : "below"} what your brain feels is fair
+            for {productName || "this"}.
           </p>
         </div>
 
+        {/* Inflation contribution */}
         <div className="rounded-xl border border-slate-700 bg-slate-900/80 p-4 text-sm">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Rough inflation contribution
           </h3>
+
           {inflationContribution ? (
             <>
               <p className="mt-2 text-slate-100">
-                Since your last memory of this price, a rough inflation estimate
-                in your region is:
+                Since your last memory of this price, official inflation in your
+                region is:
               </p>
+
               <p className="mt-2 text-xl font-bold text-emerald-300">
                 {inflationContribution.estimatedInflationPercent.toFixed(0)}%
               </p>
+
               <p className="mt-2 text-xs text-slate-300">
                 Roughly{" "}
                 <span className="font-semibold">
                   {inflationContribution.inflationExplainsPercent.toFixed(0)}%
                 </span>{" "}
-                of the price jump could be from &quot;the world got more
-                expensive&quot;, not just this product.
+                of the price jump could be from &quot;the world getting more
+                expensive&quot;.
               </p>
+
+              {/* ✅ INFLATION CHART — THIS WAS MISSING */}
+              {inflationData && inflationData.length > 1 && (
+                <InflationChart data={inflationData} />
+              )}
             </>
           ) : (
             <p className="mt-2 text-xs text-slate-300">
-              We don&apos;t have enough info about your last purchase year to
-              estimate inflation clearly, but your feeling still carries useful
-              information about value and context.
+              We don’t have enough information to estimate inflation precisely,
+              but your reaction still reflects real value and context.
             </p>
           )}
         </div>
 
+        {/* Psychological factors */}
         <div className="rounded-xl border border-slate-700 bg-slate-900/80 p-4 text-sm">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Psychological factors
           </h3>
+
           <ul className="mt-2 space-y-1">
             {psychologicalFactors.map((factor) => (
               <li key={factor.key} className="flex items-start gap-2">
@@ -103,7 +129,9 @@ export default function ExplanationResult({ result }: Props) {
                   <p className="text-slate-100 text-xs font-semibold">
                     {factor.label}
                   </p>
-                  <p className="text-xs text-slate-300">{factor.description}</p>
+                  <p className="text-xs text-slate-300">
+                    {factor.description}
+                  </p>
                 </div>
               </li>
             ))}
@@ -111,11 +139,13 @@ export default function ExplanationResult({ result }: Props) {
         </div>
       </div>
 
+      {/* Context notes */}
       {contextNotes.length > 0 && (
         <div className="rounded-xl border border-slate-700 bg-slate-900/80 p-4 text-sm">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Context that might be influencing you
           </h3>
+
           <ul className="mt-2 space-y-1 list-disc list-inside text-slate-300">
             {contextNotes.map((note, idx) => (
               <li key={idx} className="text-xs">
