@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+/* Custom globals */
+:root {
+  --background: #020617;
+  --foreground: #e5e7eb;
+}
+
+body {
+  background: radial-gradient(circle at top, #0f172a, #020617 60%);
+  color: var(--foreground);
+  font-family: system-ui, sans-serif;
+}
