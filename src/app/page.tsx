@@ -43,7 +43,7 @@ export default function HomePage() {
 
           {error && (
             <p className="mt-2 text-xs text-red-400">
-              Could not load inflation data. Using perception-based analysis.
+              Could not load inflation data. Using perception-based analysis..
             </p>
           )}
         </header>
